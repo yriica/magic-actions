@@ -1,0 +1,57 @@
+name: MagicActions
+options:
+  bundleIdPrefix: com.hirano.magicactions
+  deploymentTarget:
+    macOS: "15.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: true
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: 1
+    INFOPLIST_KEY_CFBundleDisplayName: MagicActions
+    INFOPLIST_KEY_LSUIElement: true
+    INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 yriica"
+    INFOPLIST_KEY_NSAppleEventsUsageDescription: "AppleScript アクションの実行に使用します。"
+    SWIFT_EMIT_LOC_STRINGS: false
+
+targets:
+  MagicActions:
+    type: application
+    platform: macOS
+    sources:
+      - path: MagicActions
+    scheme:
+      testTargets:
+        - MagicActionsTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hirano.magicactions.app
+        SUPPORTS_MACCATALYST: false
+        CODE_SIGN_ENTITLEMENTS: MagicActions/Resources/MagicActions.entitlements
+        SWIFT_OBJC_BRIDGING_HEADER: MagicActions/Multitouch/MultitouchBridge.h
+        OTHER_LDFLAGS: "$(inherited) -F/System/Library/PrivateFrameworks -framework MultitouchSupport"
+      configs:
+        Debug:
+          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: ""
+        Release:
+          CODE_SIGN_IDENTITY: "Apple Development"
+          CODE_SIGN_STYLE: Automatic
+          DEVELOPMENT_TEAM: R2JNUBXM56
+
+  MagicActionsTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: MagicActionsTests
+    dependencies:
+      - target: MagicActions
+    settings:
+      base:
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual

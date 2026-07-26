@@ -33,6 +33,7 @@ final class AppState: ObservableObject {
     let frontmost = FrontmostAppMonitor()
     let loginItem = LoginItemManager()
     let dispatcher = ActionDispatcher()
+    let pointerSpeed = PointerSpeedManager()
 
     private let touch = TouchService()
     private let engine = GestureEngine()
@@ -71,6 +72,15 @@ final class AppState: ObservableObject {
         buttons.start()
         touch.start()
         observeSleepWake()
+        autoConfigureLoginItem()
+    }
+
+    /// Background residency: register as a login item once on first launch
+    /// (the user can opt out from the General settings).
+    private func autoConfigureLoginItem() {
+        guard !config.settings.loginItemAutoConfigured else { return }
+        config.settings.loginItemAutoConfigured = true
+        loginItem.isEnabled = true
     }
 
     // MARK: - Wiring
@@ -96,6 +106,7 @@ final class AppState: ObservableObject {
         touch.onDevicesChanged = { [weak self] infos in
             Task { @MainActor [weak self] in
                 self?.devices = infos
+                self?.reapplyTrackingIfNeeded()
             }
         }
 
@@ -147,6 +158,38 @@ final class AppState: ObservableObject {
         engine.setStrokeMatcher(enabled: hasStrokeBindings || recorderArmed) { points in
             StrokeRecognizer.recognize(points, templates: templates, threshold: threshold)?.id
         }
+
+        reapplyTrackingIfNeeded(config: config)
+    }
+
+    // MARK: - Trackpad tracking-speed override
+
+    /// Enabling captures the current system value first (for restoration and as
+    /// the slider's starting point); disabling restores it.
+    func setTrackingEnabled(_ enabled: Bool) {
+        if enabled {
+            if config.settings.trackpadTrackingOriginal == nil {
+                let current = pointerSpeed.currentTrackpadAcceleration() ?? 3.0
+                config.settings.trackpadTrackingOriginal = current
+                config.settings.trackpadTrackingValue = min(max(current, 0), 5)
+            }
+            config.settings.trackpadTrackingEnabled = true
+        } else {
+            config.settings.trackpadTrackingEnabled = false
+            if let original = config.settings.trackpadTrackingOriginal {
+                pointerSpeed.apply(acceleration: original)
+                pointerSpeed.persistScalingPreference(original)
+            }
+            config.settings.trackpadTrackingOriginal = nil
+        }
+    }
+
+    func reapplyTrackingIfNeeded(config: AppConfig? = nil) {
+        let settings = (config ?? self.config).settings
+        guard settings.trackpadTrackingEnabled else { return }
+        let acceleration = settings.trackpadLinearMode ? -1.0 : settings.trackpadTrackingValue
+        pointerSpeed.apply(acceleration: acceleration)
+        pointerSpeed.persistScalingPreference(acceleration)
     }
 
     /// While the recorder sheet is open, arm stroke recognition even before any
@@ -165,8 +208,11 @@ final class AppState: ObservableObject {
         })
         sleepObservers.append(center.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
-        ) { [touch] _ in
+        ) { [weak self, touch] _ in
             touch.start()
+            Task { @MainActor [weak self] in
+                self?.reapplyTrackingIfNeeded()
+            }
         })
     }
 

@@ -21,3 +21,5 @@ spike/permcheck
 # Local config
 *.local.json
 .env
+spike/trackspeed
+spike/trackspeed2

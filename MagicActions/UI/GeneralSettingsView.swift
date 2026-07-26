@@ -14,6 +14,29 @@ struct GeneralSettingsView: View {
 
             Section("起動") {
                 LoginItemToggle(manager: appState.loginItem)
+                Text("初回起動時に自動でログイン項目へ登録済みです。ここでいつでも解除できます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("トラックパッドのトラッキング速度") {
+                Toggle("システム設定より細かく上書きする", isOn: trackingEnabledBinding)
+                if appState.config.settings.trackpadTrackingEnabled {
+                    slider(
+                        "速度（加速度）",
+                        value: settingsDouble(\.trackpadTrackingValue),
+                        in: 0...5
+                    )
+                    .disabled(appState.config.settings.trackpadLinearMode)
+                    Toggle("加速を無効化（リニアモード）", isOn: linearModeBinding)
+                    LabeledContent("適用中の値") {
+                        Text(appliedTrackingText)
+                            .monospacedDigit()
+                    }
+                    Text("システム設定のスライダは10段階ですが、ここでは0.01刻み・最大5.0まで指定できます。システム設定側を操作すると上書きされるため、その場合は本アプリが起動時・スリープ復帰時に再適用します。オフに戻すと元の値へ復元します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("認識チューニング") {
@@ -50,6 +73,29 @@ struct GeneralSettingsView: View {
             get: { appState.config.settings[keyPath: keyPath] },
             set: { appState.config.settings[keyPath: keyPath] = $0 }
         )
+    }
+
+    private func settingsDouble(_ keyPath: WritableKeyPath<AppSettingsModel, Double>) -> Binding<Double> {
+        Binding(
+            get: { appState.config.settings[keyPath: keyPath] },
+            set: { appState.config.settings[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private var trackingEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { appState.config.settings.trackpadTrackingEnabled },
+            set: { appState.setTrackingEnabled($0) }
+        )
+    }
+
+    private var linearModeBinding: Binding<Bool> {
+        binding(\.trackpadLinearMode)
+    }
+
+    private var appliedTrackingText: String {
+        guard let value = appState.pointerSpeed.currentTrackpadAcceleration() else { return "-" }
+        return value < 0 ? "リニア（加速なし）" : String(format: "%.2f", value)
     }
 
     private func engineBinding(_ keyPath: WritableKeyPath<EngineSettings, Double>) -> Binding<Double> {

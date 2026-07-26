@@ -4,6 +4,11 @@ Magic Mouse のタッチ面のタップ・スワイプ・TipTap・ストロー�
 
 Magic Trackpad / 内蔵トラックパッドでも動作する（設定でオフにできる）。
 
+v0.2 の追加機能:
+
+- トラックパッドのトラッキング速度上書き: システム設定のスライダ（10段階）より細かい 0.01 刻み・最大 5.0、加速無効（リニアモード）にも対応。IOHIDSystem のパラメータ接続（`kIOHIDParamConnectType` + `IOConnectSetCFProperty`、macOS 26.5 実機検証済み）で即時適用し、`com.apple.trackpad.scaling` にも書いて再ログイン後も持続させる。オフに戻すと元の値へ復元
+- バックグラウンド常駐の完成: 初回起動時にログイン項目へ自動登録（設定→一般で解除可能）。もともと Dock に出ないメニューバー常駐型
+
 ## 動作要件
 
 - macOS 15 以降（macOS 26.5 で開発・検証）
@@ -49,7 +54,9 @@ MagicActions/
   Support/      ButtonMonitor, ScrollSuppressor, HUDController, FrontmostAppMonitor, LoginItemManager
   App/          AppState（配線）, MagicActionsApp（MenuBarExtra + 設定ウィンドウ）
   UI/           設定画面一式（ライブキャンバス・レコーダー・アクションピッカー等）
-spike/          M0 検証 CLI（mtdump: デバイス列挙とタッチダンプ, permcheck: TCC 状態）
+  Support/      PointerSpeedManager（トラッキング速度上書き）ほか常駐系サービス
+spike/          検証 CLI（mtdump: デバイス列挙とタッチダンプ, permcheck: TCC 状態,
+                trackspeed / trackspeed2: トラッキング速度上書き経路の実機検証）
 ```
 
 設定ファイル: `~/Library/Application Support/MagicActions/config.json`
@@ -60,3 +67,4 @@ spike/          M0 検証 CLI（mtdump: デバイス列挙とタッチダンプ,
 - サンドボックス無効・Debug は ad-hoc 署名。配布する場合は Developer ID 署名＋公証が必要
 - キーボードショートカット送出は US/JIS などレイアウト差の影響を受ける場合がある（キーコードベースのため）
 - Magic Mouse 2 の Family ID は 112/113 と推定（実機接続時に `spike/mtdump` で要確認。想定外の ID だった場合は `TouchTypes.swift` の `DeviceKind.from` に追記する）
+- トラッキング速度上書きはセッション全体（全トラックパッド共通）に効く。システム設定のスライダを動かすと上書きされるため、アプリ起動時・スリープ復帰時・デバイス再接続時に再適用する。macOS 26 では per-service の HID プロパティ読みが null を返すなど OS 側の変化が続いている領域なので、効かなくなった場合は `spike/trackspeed2` で経路を再診断する

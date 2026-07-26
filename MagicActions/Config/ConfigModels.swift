@@ -37,8 +37,20 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
     var suppressScrollDuringStroke = true
     var engine = EngineSettings.standard
 
+    /// Trackpad tracking-speed override (finer than the System Settings slider).
+    var trackpadTrackingEnabled = false
+    var trackpadTrackingValue = 3.0
+    var trackpadLinearMode = false
+    /// Acceleration captured before the first override, for restoration.
+    var trackpadTrackingOriginal: Double?
+
+    /// One-time flag: login item was auto-registered on first launch.
+    var loginItemAutoConfigured = false
+
     private enum CodingKeys: String, CodingKey {
         case enabled, showHUD, watchTrackpad, suppressScrollDuringStroke, engine
+        case trackpadTrackingEnabled, trackpadTrackingValue, trackpadLinearMode, trackpadTrackingOriginal
+        case loginItemAutoConfigured
     }
 
     init() {}
@@ -50,6 +62,11 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
         watchTrackpad = try c.decodeIfPresent(Bool.self, forKey: .watchTrackpad) ?? true
         suppressScrollDuringStroke = try c.decodeIfPresent(Bool.self, forKey: .suppressScrollDuringStroke) ?? true
         engine = try c.decodeIfPresent(EngineSettings.self, forKey: .engine) ?? .standard
+        trackpadTrackingEnabled = try c.decodeIfPresent(Bool.self, forKey: .trackpadTrackingEnabled) ?? false
+        trackpadTrackingValue = try c.decodeIfPresent(Double.self, forKey: .trackpadTrackingValue) ?? 3.0
+        trackpadLinearMode = try c.decodeIfPresent(Bool.self, forKey: .trackpadLinearMode) ?? false
+        trackpadTrackingOriginal = try c.decodeIfPresent(Double.self, forKey: .trackpadTrackingOriginal)
+        loginItemAutoConfigured = try c.decodeIfPresent(Bool.self, forKey: .loginItemAutoConfigured) ?? false
     }
 }
 

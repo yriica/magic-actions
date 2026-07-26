@@ -28,6 +28,13 @@ final class ConfigModelTests: XCTestCase {
         XCTAssertEqual(decoded, EngineSettings.standard)
     }
 
+    func testAppSettingsToleratesMissingKeys() throws {
+        let decoded = try JSONDecoder().decode(AppSettingsModel.self, from: Data("{}".utf8))
+        XCTAssertEqual(decoded, AppSettingsModel())
+        XCTAssertFalse(decoded.trackpadTrackingEnabled)
+        XCTAssertFalse(decoded.loginItemAutoConfigured)
+    }
+
     private func event(kind: GestureKind, fingers: Int, column: Zone = .middle, vertical: Zone = .base,
                        device: DeviceKind = .magicMouse) -> GestureEvent {
         GestureEvent(deviceKind: device, kind: kind, fingers: fingers,

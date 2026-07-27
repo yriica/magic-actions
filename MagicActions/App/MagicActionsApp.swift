@@ -2,10 +2,11 @@ import SwiftUI
 
 @main
 struct MagicActionsApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     var body: some Scene {
-        MenuBarExtra {
+        MenuBarExtra(isInserted: menuBarIconBinding) {
             MenuBarView()
                 .environmentObject(appState)
         } label: {
@@ -19,5 +20,12 @@ struct MagicActionsApp: App {
         }
         .defaultLaunchBehavior(.suppressed)
         .windowResizability(.contentMinSize)
+    }
+
+    private var menuBarIconBinding: Binding<Bool> {
+        Binding(
+            get: { appState.config.settings.showMenuBarIcon },
+            set: { appState.config.settings.showMenuBarIcon = $0 }
+        )
     }
 }

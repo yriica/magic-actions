@@ -52,11 +52,17 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
     /// One-time flag: login item was auto-registered on first launch.
     var loginItemAutoConfigured = false
 
+    /// Presentation: show in Dock / app switcher (regular app) vs menu-bar-only.
+    var showInDock = false
+    /// Menu bar icon can only be hidden while the Dock icon is shown.
+    var showMenuBarIcon = true
+
     private enum CodingKeys: String, CodingKey {
         case enabled, showHUD, watchTrackpad, suppressScrollDuringStroke, engine
         case trackpadTrackingEnabled, trackpadTrackingValue, trackpadLinearMode, trackpadTrackingOriginal
         case scrollSpeedEnabled, trackpadScrollMultiplier, mouseScrollMultiplier
         case loginItemAutoConfigured
+        case showInDock, showMenuBarIcon
     }
 
     init() {}
@@ -76,6 +82,8 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
         trackpadScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .trackpadScrollMultiplier) ?? 2.0
         mouseScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .mouseScrollMultiplier) ?? 1.0
         loginItemAutoConfigured = try c.decodeIfPresent(Bool.self, forKey: .loginItemAutoConfigured) ?? false
+        showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? false
+        showMenuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? true
     }
 }
 

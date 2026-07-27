@@ -19,6 +19,15 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("表示") {
+                Toggle("Dock とアプリスイッチャーに表示", isOn: showInDockBinding)
+                Toggle("メニューバーにアイコンを表示", isOn: binding(\.showMenuBarIcon))
+                    .disabled(!appState.config.settings.showInDock)
+                Text("オフにするとメニューバー常駐のみ（既定）になります。メニューバーアイコンを消せるのは Dock 表示中だけです（設定画面へ戻る手段を残すため）。Dock アイコンのクリックでこの設定画面が開きます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("スクロール速度") {
                 Toggle("スクロール速度を上書きする（倍率）", isOn: binding(\.scrollSpeedEnabled))
                 if appState.config.settings.scrollSpeedEnabled {
@@ -102,6 +111,13 @@ struct GeneralSettingsView: View {
 
     private var linearModeBinding: Binding<Bool> {
         binding(\.trackpadLinearMode)
+    }
+
+    private var showInDockBinding: Binding<Bool> {
+        Binding(
+            get: { appState.config.settings.showInDock },
+            set: { appState.setShowInDock($0) }
+        )
     }
 
     private var appliedTrackingText: String {

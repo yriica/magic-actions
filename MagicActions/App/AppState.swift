@@ -181,6 +181,31 @@ final class AppState: ObservableObject {
             trackpad: config.settings.trackpadScrollMultiplier,
             mouse: config.settings.mouseScrollMultiplier
         )
+
+        applyActivationPolicy(config.settings.showInDock)
+    }
+
+    /// Nani-style presentation switch: regular app (Dock + app switcher) vs
+    /// menu-bar-only accessory.
+    private func applyActivationPolicy(_ showInDock: Bool) {
+        let policy: NSApplication.ActivationPolicy = showInDock ? .regular : .accessory
+        guard NSApp.activationPolicy() != policy else { return }
+        NSApp.setActivationPolicy(policy)
+        // Keep an open settings window usable after dropping out of the Dock.
+        let settingsVisible = NSApp.windows.contains {
+            $0.isVisible && ($0.identifier?.rawValue.hasPrefix("settings") ?? false)
+        }
+        if settingsVisible {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    func setShowInDock(_ show: Bool) {
+        config.settings.showInDock = show
+        if !show {
+            // Never allow both surfaces to disappear.
+            config.settings.showMenuBarIcon = true
+        }
     }
 
     // MARK: - Trackpad tracking-speed override

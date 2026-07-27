@@ -38,7 +38,7 @@ final class AppState: ObservableObject {
     private let touch = TouchService()
     private let engine = GestureEngine()
     private let buttons = ButtonMonitor()
-    private let suppressor = ScrollSuppressor()
+    private let scrollTap = ScrollTap()
     private let hud = HUDController()
     private let runtime = RuntimeFlags()
 
@@ -88,9 +88,13 @@ final class AppState: ObservableObject {
     private func wire() {
         let engine = engine
         let runtime = runtime
+        let scrollTap = scrollTap
 
         touch.onFrame = { [weak self] frame in
             // Background thread: filter and forward without touching the main actor.
+            if !frame.touches.isEmpty {
+                scrollTap.noteTouches(kind: frame.deviceKind, at: frame.timestamp)
+            }
             let deviceAllowed = frame.deviceKind == .magicMouse
                 || (runtime.watchTrackpad && frame.deviceKind != .unknown)
             if deviceAllowed {
@@ -126,7 +130,7 @@ final class AppState: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let allowed = self.config.settings.suppressScrollDuringStroke && self.permissions.inputMonitoring
-                self.suppressor.setActive(wants && allowed)
+                self.scrollTap.setSuppress(wants && allowed)
             }
         }
 
@@ -142,6 +146,17 @@ final class AppState: ObservableObject {
             .removeDuplicates()
             .sink { [weak self] newConfig in
                 self?.applyConfig(newConfig)
+            }
+            .store(in: &cancellables)
+
+        // A late Input Monitoring grant should revive the scroll tap.
+        permissions.$inputMonitoring
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] granted in
+                guard granted, let self else { return }
+                self.scrollTap.resetUnavailable()
+                self.applyConfig(self.config)
             }
             .store(in: &cancellables)
     }
@@ -160,6 +175,12 @@ final class AppState: ObservableObject {
         }
 
         reapplyTrackingIfNeeded(config: config)
+
+        scrollTap.setMultipliers(
+            enabled: config.settings.scrollSpeedEnabled,
+            trackpad: config.settings.trackpadScrollMultiplier,
+            mouse: config.settings.mouseScrollMultiplier
+        )
     }
 
     // MARK: - Trackpad tracking-speed override

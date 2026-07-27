@@ -44,12 +44,18 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
     /// Acceleration captured before the first override, for restoration.
     var trackpadTrackingOriginal: Double?
 
+    /// Scroll-speed override (delta multiplication for touch-based scrolling).
+    var scrollSpeedEnabled = false
+    var trackpadScrollMultiplier = 2.0
+    var mouseScrollMultiplier = 1.0
+
     /// One-time flag: login item was auto-registered on first launch.
     var loginItemAutoConfigured = false
 
     private enum CodingKeys: String, CodingKey {
         case enabled, showHUD, watchTrackpad, suppressScrollDuringStroke, engine
         case trackpadTrackingEnabled, trackpadTrackingValue, trackpadLinearMode, trackpadTrackingOriginal
+        case scrollSpeedEnabled, trackpadScrollMultiplier, mouseScrollMultiplier
         case loginItemAutoConfigured
     }
 
@@ -66,6 +72,9 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
         trackpadTrackingValue = try c.decodeIfPresent(Double.self, forKey: .trackpadTrackingValue) ?? 3.0
         trackpadLinearMode = try c.decodeIfPresent(Bool.self, forKey: .trackpadLinearMode) ?? false
         trackpadTrackingOriginal = try c.decodeIfPresent(Double.self, forKey: .trackpadTrackingOriginal)
+        scrollSpeedEnabled = try c.decodeIfPresent(Bool.self, forKey: .scrollSpeedEnabled) ?? false
+        trackpadScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .trackpadScrollMultiplier) ?? 2.0
+        mouseScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .mouseScrollMultiplier) ?? 1.0
         loginItemAutoConfigured = try c.decodeIfPresent(Bool.self, forKey: .loginItemAutoConfigured) ?? false
     }
 }

@@ -19,6 +19,17 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("スクロール速度") {
+                Toggle("スクロール速度を上書きする（倍率）", isOn: binding(\.scrollSpeedEnabled))
+                if appState.config.settings.scrollSpeedEnabled {
+                    slider("トラックパッド倍率", value: settingsDouble(\.trackpadScrollMultiplier), in: 0.5...6)
+                    slider("Magic Mouse 倍率", value: settingsDouble(\.mouseScrollMultiplier), in: 0.5...6)
+                    Text("1.00 が標準。2.00 なら一振りのスクロール量が2倍になり、慣性スクロールにも適用されます。タッチ式スクロール（トラックパッド・Magic Mouse）のみが対象で、ホイール式マウスには影響しません。入力監視の権限が必要です。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section("トラックパッドのトラッキング速度") {
                 Toggle("システム設定より細かく上書きする", isOn: trackingEnabledBinding)
                 if appState.config.settings.trackpadTrackingEnabled {
@@ -113,16 +124,30 @@ struct GeneralSettingsView: View {
         }
     }
 
+    /// Slider with a companion text field so exact values can be typed directly.
     private func slider(_ title: String, value: Binding<Double>, in range: ClosedRange<Double>) -> some View {
         VStack(alignment: .leading) {
             HStack {
                 Text(title)
                 Spacer()
-                Text(String(format: "%.2f", value.wrappedValue))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                TextField(
+                    "",
+                    value: clamped(value, to: range),
+                    format: .number.precision(.fractionLength(0...2))
+                )
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(width: 64)
             }
             Slider(value: value, in: range)
         }
+    }
+
+    private func clamped(_ value: Binding<Double>, to range: ClosedRange<Double>) -> Binding<Double> {
+        Binding(
+            get: { value.wrappedValue },
+            set: { value.wrappedValue = min(max($0, range.lowerBound), range.upperBound) }
+        )
     }
 }

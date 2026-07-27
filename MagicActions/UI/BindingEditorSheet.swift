@@ -82,7 +82,7 @@ struct BindingEditorSheet: View {
                 .symbolEffect(.pulse)
             Text("デバイスの上でジェスチャを実演してください")
                 .font(.title3)
-            Text("タップ・スワイプ・TipTap・ストローク（先端ゾーンで一拍置いてから描く）を認識します。物理クリックを伴う操作は登録できません。")
+            Text("タップ・スワイプ・TipTap・ストローク（一拍静止してから描く）を認識します。物理クリックを伴う操作は登録できません。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

@@ -12,31 +12,45 @@ enum StrokeRecognizer {
     private static let anglePrecision: CGFloat = .pi / 90 // 2°
     private static let phi: CGFloat = 0.5 * (-1 + sqrt(5))
 
-    /// Recognize a raw path against templates. Returns (templateID, score 0..1).
-    static func recognize(_ raw: [CGPoint], templates: [StrokeTemplate], threshold: Double) -> (id: UUID, score: Double)? {
+    struct BestMatch {
+        let id: UUID
+        let name: String
+        let score: Double
+    }
+
+    /// Nearest template regardless of threshold (for diagnostics and matching).
+    static func bestMatch(_ raw: [CGPoint], templates: [StrokeTemplate]) -> BestMatch? {
         guard raw.count >= 4 else { return nil }
 
-        // 1-D strokes: classify as directional lines when a matching line template exists.
+        // 1-D strokes: classify as directional lines.
         if let line = lineDirection(raw) {
-            if templates.contains(where: { $0.id == line.uuid }) {
-                return (line.uuid, 1.0)
-            }
-            return nil
+            let name = templates.first { $0.id == line.uuid }?.name ?? line.name
+            return BestMatch(id: line.uuid, name: name, score: 1.0)
         }
 
         guard let candidate = normalize(raw) else { return nil }
-        var best: (id: UUID, distance: CGFloat)?
+        var best: (template: StrokeTemplate, distance: CGFloat)?
         for template in templates {
             guard let processed = normalize(template.points) else { continue }
             let d = distanceAtBestAngle(candidate, processed)
             if best == nil || d < best!.distance {
-                best = (template.id, d)
+                best = (template, d)
             }
         }
         guard let best else { return nil }
         let halfDiagonal = 0.5 * sqrt(2 * squareSize * squareSize)
         let score = Double(1 - best.distance / halfDiagonal)
-        return score >= threshold ? (best.id, score) : nil
+        return BestMatch(id: best.template.id, name: best.template.name, score: score)
+    }
+
+    /// Recognize a raw path against templates. Returns (templateID, score 0..1).
+    static func recognize(_ raw: [CGPoint], templates: [StrokeTemplate], threshold: Double) -> (id: UUID, score: Double)? {
+        guard
+            let best = bestMatch(raw, templates: templates),
+            best.score >= threshold,
+            templates.contains(where: { $0.id == best.id })
+        else { return nil }
+        return (best.id, best.score)
     }
 
     /// Detect near-1-D strokes and classify by dominant direction.
@@ -44,7 +58,7 @@ enum StrokeRecognizer {
         let box = boundingBox(raw)
         let w = box.width, h = box.height
         guard max(w, h) > 0 else { return nil }
-        guard min(w, h) / max(w, h) < 0.25 else { return nil }
+        guard min(w, h) / max(w, h) < 0.35 else { return nil }
         guard let first = raw.first, let last = raw.last else { return nil }
         let dx = last.x - first.x
         let dy = last.y - first.y

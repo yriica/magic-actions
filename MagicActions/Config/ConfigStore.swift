@@ -16,7 +16,21 @@ final class ConfigStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     init() {
-        config = Self.load()
+        config = Self.migrate(Self.load())
+        persist()
+    }
+
+    /// Bump stroke-recognition defaults for configs written by older versions
+    /// (the original trigger conditions were too strict to fire in practice).
+    static func migrate(_ config: AppConfig) -> AppConfig {
+        var config = config
+        if config.version < 2 {
+            config.settings.engine.strokeScoreThreshold = 0.70
+            config.settings.engine.strokeDwellMaxTravel = 0.10
+            config.settings.engine.strokeTriggerZoneFraction = 0.45
+            config.version = 2
+        }
+        return config
     }
 
     private static func load() -> AppConfig {

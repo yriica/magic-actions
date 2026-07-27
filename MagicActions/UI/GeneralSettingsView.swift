@@ -64,7 +64,17 @@ struct GeneralSettingsView: View {
                 slider("スワイプ最小距離", value: engineBinding(\.swipeMinTravel), in: 0.05...0.4)
                 slider("縁のデッドゾーン（左右）", value: engineBinding(\.deadZoneEdgeX), in: 0...0.15)
                 slider("縁のデッドゾーン（手前）", value: engineBinding(\.deadZoneBottom), in: 0...0.2)
-                slider("ストローク開始ゾーン（先端側の割合）", value: engineBinding(\.strokeTriggerZoneFraction), in: 0.1...0.6)
+            }
+
+            Section("ストローク認識") {
+                Toggle("面のどこからでも開始できるようにする", isOn: engineBool(\.strokeTriggerAnywhere))
+                slider("開始ゾーン（先端側の割合）", value: engineBinding(\.strokeTriggerZoneFraction), in: 0.1...0.8)
+                    .disabled(appState.config.settings.engine.strokeTriggerAnywhere)
+                slider("静止中の許容移動量", value: engineBinding(\.strokeDwellMaxTravel), in: 0.02...0.2)
+                slider("一致しきい値（低いほど緩い）", value: engineBinding(\.strokeScoreThreshold), in: 0.5...0.95)
+                Text("発動手順: 1本指で触れて一拍（0.15秒）静止 → そのまま描く → 指を離す。不成立の理由はライブビューの認識ログと HUD に表示されます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("設定ファイル") {
@@ -99,6 +109,13 @@ struct GeneralSettingsView: View {
         Binding(
             get: { appState.config.settings[keyPath: keyPath] },
             set: { appState.config.settings[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private func engineBool(_ keyPath: WritableKeyPath<EngineSettings, Bool>) -> Binding<Bool> {
+        Binding(
+            get: { appState.config.settings.engine[keyPath: keyPath] },
+            set: { appState.config.settings.engine[keyPath: keyPath] = $0 }
         )
     }
 

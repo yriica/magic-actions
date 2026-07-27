@@ -126,6 +126,12 @@ final class AppState: ObservableObject {
             }
         }
 
+        engine.onStrokeRejected = { [weak self] reason in
+            Task { @MainActor [weak self] in
+                self?.reportStrokeFailure(logText: reason, hudText: "ストローク不成立（詳細はログ）")
+            }
+        }
+
         engine.onScrollSuppressionChange = { [weak self] wants in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -170,8 +176,26 @@ final class AppState: ObservableObject {
             .contains { $0.isEnabled && $0.spec.kind == .stroke }
         let templates = config.allStrokeTemplates
         let threshold = config.settings.engine.strokeScoreThreshold
-        engine.setStrokeMatcher(enabled: hasStrokeBindings || recorderArmed) { points in
-            StrokeRecognizer.recognize(points, templates: templates, threshold: threshold)?.id
+        engine.setStrokeMatcher(enabled: hasStrokeBindings || recorderArmed) { [weak self] points in
+            let best = StrokeRecognizer.bestMatch(points, templates: templates)
+            if let best, best.score >= threshold {
+                return best.id
+            }
+            // Armed draw that missed: surface why, so thresholds can be tuned.
+            let logText: String
+            let hudText: String
+            if let best {
+                logText = String(format: "ストローク不一致: 最も近いのは「%@」スコア %.2f（しきい値 %.2f）",
+                                 best.name, best.score, threshold)
+                hudText = String(format: "不一致「%@」%.2f / %.2f", best.name, best.score, threshold)
+            } else {
+                logText = "ストローク不一致: 形を判定できませんでした（軌跡が短すぎます）"
+                hudText = "ストローク判定不能"
+            }
+            Task { @MainActor [weak self] in
+                self?.reportStrokeFailure(logText: logText, hudText: hudText)
+            }
+            return nil
         }
 
         reapplyTrackingIfNeeded(config: config)
@@ -280,6 +304,13 @@ final class AppState: ObservableObject {
         }
         log("実行: \(binding.action.displayName)")
         dispatcher.perform(binding.action)
+    }
+
+    private func reportStrokeFailure(logText: String, hudText: String) {
+        log(logText)
+        if config.settings.showHUD {
+            hud.show(hudText)
+        }
     }
 
     private func log(_ line: String) {

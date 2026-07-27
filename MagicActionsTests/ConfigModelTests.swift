@@ -35,6 +35,21 @@ final class ConfigModelTests: XCTestCase {
         XCTAssertFalse(decoded.loginItemAutoConfigured)
     }
 
+    @MainActor
+    func testVersion1ConfigMigratesStrokeDefaults() {
+        var old = AppConfig.makeDefault()
+        old.version = 1
+        old.settings.engine.strokeScoreThreshold = 0.78
+        old.settings.engine.strokeDwellMaxTravel = 0.06
+        old.settings.engine.strokeTriggerZoneFraction = 0.3
+
+        let migrated = ConfigStore.migrate(old)
+        XCTAssertEqual(migrated.version, 2)
+        XCTAssertEqual(migrated.settings.engine.strokeScoreThreshold, 0.70)
+        XCTAssertEqual(migrated.settings.engine.strokeDwellMaxTravel, 0.10)
+        XCTAssertEqual(migrated.settings.engine.strokeTriggerZoneFraction, 0.45)
+    }
+
     private func event(kind: GestureKind, fingers: Int, column: Zone = .middle, vertical: Zone = .base,
                        device: DeviceKind = .magicMouse) -> GestureEvent {
         GestureEvent(deviceKind: device, kind: kind, fingers: fingers,

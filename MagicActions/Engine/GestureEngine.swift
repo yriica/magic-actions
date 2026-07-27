@@ -12,12 +12,16 @@ final class GestureEngine: @unchecked Sendable {
     /// Called on the engine queue.
     var onGesture: (@Sendable (GestureEvent) -> Void)?
     var onRawStroke: (@Sendable ([CGPoint], DeviceKind) -> Void)?
+    var onStrokeRejected: (@Sendable (String) -> Void)?
     var onScrollSuppressionChange: (@Sendable (Bool) -> Void)?
 
     init(settings: EngineSettings = .standard) {
         detector = GestureDetector(settings: settings)
         detector.onRawStroke = { [weak self] points, kind in
             self?.onRawStroke?(points, kind)
+        }
+        detector.onStrokeRejected = { [weak self] reason in
+            self?.onStrokeRejected?(reason)
         }
     }
 

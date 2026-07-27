@@ -15,7 +15,7 @@ struct StrokeTemplatesView: View {
                     Label("ストロークを記録…", systemImage: "plus.circle.fill")
                 }
                 Spacer()
-                Text("ストロークは面の先端側で一拍置いてから描くと発動します")
+                Text("発動: 1本指で触れて一拍静止→描く（開始位置などは一般設定で調整可）")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

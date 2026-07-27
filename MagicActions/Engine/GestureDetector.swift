@@ -14,6 +14,14 @@ final class GestureDetector {
     var strokeMatcher: (([CGPoint]) -> UUID?)?
     /// Raw path emission for template recording.
     var onRawStroke: (([CGPoint], DeviceKind) -> Void)?
+    /// Human-readable reasons why a deliberate-looking draw did not arm.
+    var onStrokeRejected: ((String) -> Void)?
+
+    enum StrokeDwellFailure {
+        case outsideZone
+        case movedDuringDwell(travel: Double)
+        case multiTouch
+    }
 
     private struct PathKey: Hashable {
         let deviceID: UInt64
@@ -35,6 +43,7 @@ final class GestureDetector {
         var ignored: Bool
         var strokeCandidate = false
         var dwellEvaluated = false
+        var dwellFailure: StrokeDwellFailure?
     }
 
     private struct PendingMember {
@@ -179,8 +188,21 @@ final class GestureDetector {
         guard strokeEnabled, !p.dwellEvaluated, !p.ignored, !captureAllStrokes else { return }
         guard t - p.startTime >= settings.strokeDwellTime else { return }
         p.dwellEvaluated = true
-        let inTriggerZone = p.startY >= 1.0 - settings.strokeTriggerZoneFraction
-        p.strokeCandidate = inTriggerZone && p.maxDisplacement <= settings.strokeDwellMaxTravel
+        let inTriggerZone = settings.strokeTriggerAnywhere
+            || p.startY >= 1.0 - settings.strokeTriggerZoneFraction
+        let stillEnough = p.maxDisplacement <= settings.strokeDwellMaxTravel
+        // Strokes are single-finger; a second finger means scrolling/other gestures.
+        let alone = paths.values.filter { $0.key.deviceID == p.key.deviceID }.count <= 1
+        p.strokeCandidate = inTriggerZone && stillEnough && alone
+        if !p.strokeCandidate {
+            if !inTriggerZone {
+                p.dwellFailure = .outsideZone
+            } else if !stillEnough {
+                p.dwellFailure = .movedDuringDwell(travel: p.maxDisplacement)
+            } else {
+                p.dwellFailure = .multiTouch
+            }
+        }
     }
 
     private func isInDeadZone(x: Double, y: Double) -> Bool {
@@ -216,6 +238,7 @@ final class GestureDetector {
                               deviceKind: p.deviceKind, timestamp: endTime,
                               strokeTemplateID: templateID)]
         }
+        diagnoseFailedStroke(p, endTime: endTime)
 
         let duration = endTime - p.startTime
         if clickOccurred(between: p.startTime, and: endTime + settings.clickContaminationWindow) {
@@ -261,6 +284,36 @@ final class GestureDetector {
         }
 
         return []
+    }
+
+    /// Explain why a draw that plausibly targeted the trigger zone did not fire.
+    /// Silent for ordinary scrolls (paths starting outside the zone).
+    private func diagnoseFailedStroke(_ p: TouchPath, endTime: Double) {
+        guard strokeEnabled, !captureAllStrokes, !p.strokeCandidate else { return }
+        guard p.pathLength >= settings.strokeMinLength else { return }
+        // Only diagnose zone-targeted attempts to avoid logging every scroll.
+        guard !settings.strokeTriggerAnywhere else { return }
+        let startedInZone = p.startY >= 1.0 - settings.strokeTriggerZoneFraction
+        guard startedInZone else { return }
+
+        switch p.dwellFailure {
+        case .movedDuringDwell(let travel):
+            onStrokeRejected?(String(
+                format: "ストローク不成立: 静止中に動きすぎ（%.2f > 許容%.2f）。触れてから一拍（%.2f秒）止めてください",
+                travel, settings.strokeDwellMaxTravel, settings.strokeDwellTime
+            ))
+        case .multiTouch:
+            onStrokeRejected?("ストローク不成立: 2本以上のタッチを検出（1本指で描いてください）")
+        case .outsideZone:
+            break
+        case nil:
+            if endTime - p.startTime < settings.strokeDwellTime {
+                onStrokeRejected?(String(
+                    format: "ストローク不成立: 描き始めが早すぎます（%.2f秒静止してから描いてください）",
+                    settings.strokeDwellTime
+                ))
+            }
+        }
     }
 
     private func appendPending(kind: GestureKind, deviceKind: DeviceKind,

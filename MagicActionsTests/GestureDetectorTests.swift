@@ -179,6 +179,53 @@ final class GestureDetectorTests: XCTestCase {
         XCTAssertEqual(events.first?.strokeTemplateID, BuiltinStroke.circle.uuid)
     }
 
+    func testStrokeAnywhereModeArmsFromMidSurface() {
+        var settings = EngineSettings.standard
+        settings.strokeTriggerAnywhere = true
+        detector = GestureDetector(settings: settings)
+        detector.strokeEnabled = true
+        let templates = BuiltinStroke.allCases.map(\.template)
+        detector.strokeMatcher = { points in
+            StrokeRecognizer.recognize(points, templates: templates, threshold: 0.7)?.id
+        }
+
+        var events: [GestureEvent] = []
+        // Dwell in the middle of the surface (outside the tip zone).
+        events += detector.process(frame(0.00, touches: [(1, .began, 0.5, 0.35)]))
+        events += detector.process(frame(0.08, touches: [(1, .moved, 0.5, 0.35)]))
+        events += detector.process(frame(0.16, touches: [(1, .moved, 0.5, 0.35)]))
+        let steps = 24
+        for i in 1...steps {
+            let angle = Double.pi / 2 + 2 * Double.pi * Double(i) / Double(steps)
+            let x = 0.5 + 0.2 * cos(angle)
+            let y = 0.15 + 0.2 * sin(angle)
+            events += detector.process(frame(0.16 + 0.02 * Double(i), touches: [(1, .moved, x, y)]))
+        }
+        events += detector.process(frame(0.70, touches: [(1, .ended, 0.5, 0.35)]))
+        events += detector.flush(at: 1.2)
+
+        XCTAssertEqual(events.count, 1)
+        XCTAssertEqual(events.first?.kind, .stroke)
+        XCTAssertEqual(events.first?.strokeTemplateID, BuiltinStroke.circle.uuid)
+    }
+
+    func testFailedStrokeAttemptEmitsDiagnostic() {
+        detector.strokeEnabled = true
+        detector.strokeMatcher = { _ in nil }
+        var diagnostics: [String] = []
+        detector.onStrokeRejected = { diagnostics.append($0) }
+
+        // Starts in the tip zone but draws immediately (no dwell) with a long path.
+        var events: [GestureEvent] = []
+        events += detector.process(frame(0.00, touches: [(1, .began, 0.5, 0.9)]))
+        events += detector.process(frame(0.04, touches: [(1, .moved, 0.5, 0.6)]))
+        events += detector.process(frame(0.08, touches: [(1, .ended, 0.5, 0.3)]))
+        _ = detector.flush(at: 0.5)
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertTrue(diagnostics[0].contains("早すぎ"))
+    }
+
     func testShortTouchInTriggerZoneStillTapsWhenStrokesEnabled() {
         detector.strokeEnabled = true
         detector.strokeMatcher = { _ in nil }

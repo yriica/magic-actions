@@ -24,11 +24,13 @@ struct EngineSettings: Hashable, Sendable {
     var clickContaminationWindow = 0.08
 
     var strokeDwellTime = 0.15
-    var strokeDwellMaxTravel = 0.06
+    var strokeDwellMaxTravel = 0.10
     /// Fraction of the surface (from the far edge) that arms stroke drawing.
-    var strokeTriggerZoneFraction = 0.3
+    var strokeTriggerZoneFraction = 0.45
+    /// When true the dwell can happen anywhere on the surface, not only the tip zone.
+    var strokeTriggerAnywhere = false
     var strokeMinLength = 0.25
-    var strokeScoreThreshold = 0.78
+    var strokeScoreThreshold = 0.70
 
     static let standard = EngineSettings()
 }
@@ -40,7 +42,7 @@ extension EngineSettings: Codable {
         case anchorMinAge, anchorMaxTravel
         case deadZoneEdgeX, deadZoneBottom, deadZoneTop
         case scrollContaminationThreshold, clickContaminationWindow
-        case strokeDwellTime, strokeDwellMaxTravel, strokeTriggerZoneFraction
+        case strokeDwellTime, strokeDwellMaxTravel, strokeTriggerZoneFraction, strokeTriggerAnywhere
         case strokeMinLength, strokeScoreThreshold
     }
 
@@ -64,6 +66,7 @@ extension EngineSettings: Codable {
         s.strokeDwellTime = try c.decodeIfPresent(Double.self, forKey: .strokeDwellTime) ?? s.strokeDwellTime
         s.strokeDwellMaxTravel = try c.decodeIfPresent(Double.self, forKey: .strokeDwellMaxTravel) ?? s.strokeDwellMaxTravel
         s.strokeTriggerZoneFraction = try c.decodeIfPresent(Double.self, forKey: .strokeTriggerZoneFraction) ?? s.strokeTriggerZoneFraction
+        s.strokeTriggerAnywhere = try c.decodeIfPresent(Bool.self, forKey: .strokeTriggerAnywhere) ?? s.strokeTriggerAnywhere
         s.strokeMinLength = try c.decodeIfPresent(Double.self, forKey: .strokeMinLength) ?? s.strokeMinLength
         s.strokeScoreThreshold = try c.decodeIfPresent(Double.self, forKey: .strokeScoreThreshold) ?? s.strokeScoreThreshold
         self = s

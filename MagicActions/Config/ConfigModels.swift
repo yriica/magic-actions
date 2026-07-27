@@ -88,7 +88,7 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
 }
 
 struct AppConfig: Codable, Hashable, Sendable {
-    var version = 1
+    var version = 2
     var settings = AppSettingsModel()
     var profiles: [Profile] = []
     var strokeTemplates: [StrokeTemplate] = []

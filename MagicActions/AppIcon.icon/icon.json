@@ -1,0 +1,39 @@
+{
+  "fill": {
+    "solid": "extended-srgb:0.78039,0.74118,0.72157,1.00000"
+  },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "extended-srgb:0.16078,0.18824,0.23137,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "Artwork",
+      "layers": [
+        {
+          "name": "Magic Actions mark",
+          "image-name": "01-full-artwork.png",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

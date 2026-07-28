@@ -120,6 +120,12 @@ struct GestureListView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let warning = SystemGestureConflict.warning(for: binding.spec) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.yellow)
+                    .help(warning)
+            }
+
             Spacer()
 
             Button {

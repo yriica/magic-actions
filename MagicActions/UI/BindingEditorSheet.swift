@@ -131,6 +131,12 @@ struct BindingEditorSheet: View {
                         Text(device.label).tag(device)
                     }
                 }
+
+                if let spec, let warning = SystemGestureConflict.warning(for: spec) {
+                    Label(warning, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Section("アクション") {

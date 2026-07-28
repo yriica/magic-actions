@@ -56,6 +56,7 @@ final class AppState: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var sleepObservers: [NSObjectProtocol] = []
     private var recorderArmed = false
+    private var lastFiredAt: [UUID: Double] = [:]
 
     var config: AppConfig {
         get { configStore.config }
@@ -299,10 +300,32 @@ final class AppState: ObservableObject {
         guard let binding = config.resolveBinding(for: event, frontmostBundleID: frontmost.bundleID) else {
             return
         }
+
+        // Debounce: one physical gesture must never fire the same binding twice.
+        if let last = lastFiredAt[binding.id], event.timestamp - last < 0.35 {
+            log("抑制: 連続発火をスキップ（\(binding.title(templates: config.allStrokeTemplates))）")
+            return
+        }
+        lastFiredAt[binding.id] = event.timestamp
+
+        // Never inject keyboard shortcuts into our own settings window.
+        if case .keyboardShortcut = binding.action,
+           frontmost.bundleID == Bundle.main.bundleIdentifier {
+            log("スキップ: 前面が MagicActions のためショートカットを送出しません")
+            if config.settings.showHUD {
+                hud.show("前面が MagicActions のため送出スキップ")
+            }
+            return
+        }
+
         if config.settings.showHUD {
             hud.show(binding.title(templates: config.allStrokeTemplates))
         }
         log("実行: \(binding.action.displayName)")
+        NSLog("MagicActions dispatch: %@ -> %@ (front: %@)",
+              binding.title(templates: config.allStrokeTemplates),
+              binding.action.displayName,
+              frontmost.bundleID ?? "?")
         dispatcher.perform(binding.action)
     }
 

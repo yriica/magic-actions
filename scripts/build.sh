@@ -21,6 +21,8 @@ case "${1:-build}" in
     sleep 1
     rm -rf /Applications/MagicActions.app
     ditto build/DerivedData/Build/Products/Debug/MagicActions.app /Applications/MagicActions.app
+    # Remove the build product so Spotlight/Launchpad does not list a duplicate app.
+    rm -rf build/DerivedData/Build/Products/Debug/MagicActions.app
     open /Applications/MagicActions.app
     echo "installed: /Applications/MagicActions.app"
     echo "note: ad-hoc signed rebuilds may require re-granting Accessibility / Input Monitoring."

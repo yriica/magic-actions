@@ -43,14 +43,16 @@ targets:
         OTHER_LDFLAGS: "$(inherited) -F/System/Library/PrivateFrameworks -framework MultitouchSupport"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
+        # Stable self-signed identity: TCC grants survive rebuilds because the
+        # code signature no longer changes on every build (unlike ad-hoc).
         Debug:
-          CODE_SIGN_IDENTITY: "-"
+          CODE_SIGN_IDENTITY: "MagicActions Dev Signing"
           CODE_SIGN_STYLE: Manual
           PROVISIONING_PROFILE_SPECIFIER: ""
         Release:
-          CODE_SIGN_IDENTITY: "Apple Development"
-          CODE_SIGN_STYLE: Automatic
-          DEVELOPMENT_TEAM: R2JNUBXM56
+          CODE_SIGN_IDENTITY: "MagicActions Dev Signing"
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: ""
 
   MagicActionsTests:
     type: bundle.unit-test

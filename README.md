@@ -36,7 +36,9 @@ brew install xcodegen   # 未導入の場合
 ./scripts/build.sh test # 単体テスト実行
 ```
 
-初回起動時は設定ウィンドウの「権限」タブから アクセシビリティ / 入力監視 を許可すること。Debug ビルドは ad-hoc 署名のため、リビルドすると TCC 許可の再付与が必要になる場合がある（設定の一覧から一度削除して追加し直すのが確実）。
+初回起動時は設定ウィンドウの「権限」タブから アクセシビリティ / 入力監視 を許可すること。
+
+署名はキーチェーンの自己署名証明書「MagicActions Dev Signing」で行う（Debug / Release とも）。署名 ID が固定のため、リビルド・再インストールしても TCC 許可（アクセシビリティ / 入力監視）は維持される。新しい Mac でビルドする場合は、コード署名用の自己署名証明書を同名で作成してキーチェーンに登録する（openssl で codeSigning EKU 付き証明書を作成 → legacy 形式の p12 で `security import` → `security add-trusted-cert -p codeSign`）。`./scripts/build.sh install` は Release ビルドを `/Applications` に配置する。
 
 ## 使い方
 

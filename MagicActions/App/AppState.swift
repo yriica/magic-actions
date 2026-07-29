@@ -127,9 +127,11 @@ final class AppState: ObservableObject {
             }
         }
 
+        // Arming near-misses go to the log only; a HUD here proved too noisy
+        // because normal cursor movement can look like a failed stroke attempt.
         engine.onStrokeRejected = { [weak self] reason in
             Task { @MainActor [weak self] in
-                self?.reportStrokeFailure(logText: reason, hudText: "ストローク不成立（詳細はログ）")
+                self?.log(reason)
             }
         }
 

@@ -333,33 +333,23 @@ final class GestureDetector {
         return []
     }
 
-    /// Explain why a draw that plausibly targeted the trigger zone did not fire.
-    /// Silent for ordinary scrolls (paths starting outside the zone).
+    /// Explain why a draw that plausibly targeted a stroke did not arm.
+    /// Deliberately narrow: geometry alone cannot distinguish a failed stroke
+    /// attempt from everyday cursor movement or scrolling, so only clear
+    /// near-misses are reported — the user paused roughly in place but moved
+    /// slightly more than the dwell allowance. Everything else stays silent.
     private func diagnoseFailedStroke(_ p: TouchPath, endTime: Double) {
         guard strokeEnabled, !captureAllStrokes, !p.strokeCandidate else { return }
         guard p.pathLength >= settings.strokeMinLength else { return }
-        // Only diagnose zone-targeted attempts to avoid logging every scroll.
         guard !settings.strokeTriggerAnywhere else { return }
-        let startedInZone = p.startY >= 1.0 - settings.strokeTriggerZoneFraction
-        guard startedInZone else { return }
+        guard p.startY >= 1.0 - settings.strokeTriggerZoneFraction else { return }
 
-        switch p.dwellFailure {
-        case .movedDuringDwell(let travel):
+        if case .movedDuringDwell(let travel)? = p.dwellFailure,
+           travel <= settings.strokeDwellMaxTravel * 2 {
             onStrokeRejected?(String(
-                format: "ストローク不成立: 静止中に動きすぎ（%.2f > 許容%.2f）。触れてから一拍（%.2f秒）止めてください",
-                travel, settings.strokeDwellMaxTravel, settings.strokeDwellTime
+                format: "ストローク不成立（惜しい）: 静止中に少し動きました（%.2f > 許容%.2f）。触れてから一拍止めてから描いてください",
+                travel, settings.strokeDwellMaxTravel
             ))
-        case .multiTouch:
-            onStrokeRejected?("ストローク不成立: 2本以上のタッチを検出（1本指で描いてください）")
-        case .outsideZone:
-            break
-        case nil:
-            if endTime - p.startTime < settings.strokeDwellTime {
-                onStrokeRejected?(String(
-                    format: "ストローク不成立: 描き始めが早すぎます（%.2f秒静止してから描いてください）",
-                    settings.strokeDwellTime
-                ))
-            }
         }
     }
 

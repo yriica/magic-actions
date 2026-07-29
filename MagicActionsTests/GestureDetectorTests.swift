@@ -239,21 +239,40 @@ final class GestureDetectorTests: XCTestCase {
         XCTAssertEqual(events.first?.strokeTemplateID, BuiltinStroke.circle.uuid)
     }
 
-    func testFailedStrokeAttemptEmitsDiagnostic() {
+    func testNearMissDwellEmitsDiagnostic() {
         detector.strokeEnabled = true
         detector.strokeMatcher = { _ in nil }
         var diagnostics: [String] = []
         detector.onStrokeRejected = { diagnostics.append($0) }
 
-        // Starts in the tip zone but draws immediately (no dwell) with a long path.
+        // Paused roughly in place but drifted slightly beyond the allowance,
+        // then drew: a genuine near-miss worth reporting.
+        var events: [GestureEvent] = []
+        events += detector.process(frame(0.00, touches: [(1, .began, 0.5, 0.9)]))
+        events += detector.process(frame(0.16, touches: [(1, .moved, 0.5, 0.78)]))
+        events += detector.process(frame(0.30, touches: [(1, .moved, 0.5, 0.5)]))
+        events += detector.process(frame(0.35, touches: [(1, .ended, 0.5, 0.45)]))
+        _ = detector.flush(at: 0.8)
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertTrue(diagnostics[0].contains("惜しい"))
+    }
+
+    func testOrdinaryCursorMoveEmitsNoDiagnostic() {
+        detector.strokeEnabled = true
+        detector.strokeMatcher = { _ in nil }
+        var diagnostics: [String] = []
+        detector.onStrokeRejected = { diagnostics.append($0) }
+
+        // Immediate movement from the trigger zone: indistinguishable from
+        // everyday cursor movement, so it must stay silent.
         var events: [GestureEvent] = []
         events += detector.process(frame(0.00, touches: [(1, .began, 0.5, 0.9)]))
         events += detector.process(frame(0.04, touches: [(1, .moved, 0.5, 0.6)]))
         events += detector.process(frame(0.08, touches: [(1, .ended, 0.5, 0.3)]))
         _ = detector.flush(at: 0.5)
 
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertTrue(diagnostics[0].contains("早すぎ"))
+        XCTAssertTrue(diagnostics.isEmpty)
     }
 
     func testShortTouchInTriggerZoneStillTapsWhenStrokesEnabled() {

@@ -14,6 +14,7 @@ final class ScrollTap: @unchecked Sendable {
     private struct State {
         var suppress = false
         var multiplierEnabled = false
+        var adaptive = true
         var trackpadMultiplier = 1.0
         var mouseMultiplier = 1.0
         var lastTouchKind: DeviceKind?
@@ -24,6 +25,12 @@ final class ScrollTap: @unchecked Sendable {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private(set) var unavailable = false
+
+    // Tap-callback-thread-only state (single-threaded; no lock needed).
+    private var velocityEMA = 0.0
+    private var lastScrollEventAt = 0.0
+    private var carryPoint1 = 0.0, carryPoint2 = 0.0
+    private var carryLine1 = 0.0, carryLine2 = 0.0
 
     /// Attribution window: momentum scrolling keeps flowing after the fingers
     /// lift, so recent touch activity stays authoritative for a few seconds.
@@ -36,13 +43,26 @@ final class ScrollTap: @unchecked Sendable {
         updateTapEnabled()
     }
 
-    func setMultipliers(enabled: Bool, trackpad: Double, mouse: Double) {
+    func setMultipliers(enabled: Bool, adaptive: Bool, trackpad: Double, mouse: Double) {
         state.withLock {
             $0.multiplierEnabled = enabled
+            $0.adaptive = adaptive
             $0.trackpadMultiplier = trackpad
             $0.mouseMultiplier = mouse
         }
         updateTapEnabled()
+    }
+
+    /// Velocity-adaptive gain: 1x for slow, precise scrolling; ramps toward the
+    /// configured multiplier for fast swipes; decays back to 1x with momentum,
+    /// which keeps individual scroll steps small exactly when steps are visible.
+    static func gain(velocity: Double, maxMultiplier: Double) -> Double {
+        guard maxMultiplier > 1 else { return maxMultiplier }
+        let vLow = 600.0   // points/sec: below this, native feel untouched
+        let vHigh = 2600.0 // points/sec: full multiplier from here up
+        let t = min(max((velocity - vLow) / (vHigh - vLow), 0), 1)
+        let smooth = t * t * (3 - 2 * t)
+        return 1 + (maxMultiplier - 1) * smooth
     }
 
     /// Called from the touch-callback thread whenever a frame carries touches.
@@ -125,40 +145,77 @@ final class ScrollTap: @unchecked Sendable {
         let attributedKind: DeviceKind? =
             (now - snapshot.lastTouchTime) < Self.attributionWindow ? snapshot.lastTouchKind : nil
 
-        let multiplier: Double
+        let maxMultiplier: Double
         switch attributedKind {
         case .magicMouse:
-            multiplier = snapshot.mouseMultiplier
+            maxMultiplier = snapshot.mouseMultiplier
         case .magicTrackpad, .builtInTrackpad:
-            multiplier = snapshot.trackpadMultiplier
+            maxMultiplier = snapshot.trackpadMultiplier
         case .unknown, nil:
             // Continuous scroll without touch attribution is almost always a trackpad.
-            multiplier = snapshot.trackpadMultiplier
+            maxMultiplier = snapshot.trackpadMultiplier
         }
-        guard multiplier != 1.0 else { return Unmanaged.passUnretained(event) }
+        guard maxMultiplier != 1.0 else { return Unmanaged.passUnretained(event) }
+
+        let multiplier: Double
+        if snapshot.adaptive {
+            updateVelocity(from: event, at: now)
+            multiplier = Self.gain(velocity: velocityEMA, maxMultiplier: maxMultiplier)
+        } else {
+            multiplier = maxMultiplier
+        }
+        guard abs(multiplier - 1.0) > 0.001 else { return Unmanaged.passUnretained(event) }
 
         scaleAxis(event, line: .scrollWheelEventDeltaAxis1,
                   point: .scrollWheelEventPointDeltaAxis1,
-                  fixed: .scrollWheelEventFixedPtDeltaAxis1, by: multiplier)
+                  fixed: .scrollWheelEventFixedPtDeltaAxis1, by: multiplier,
+                  carryPoint: &carryPoint1, carryLine: &carryLine1)
         scaleAxis(event, line: .scrollWheelEventDeltaAxis2,
                   point: .scrollWheelEventPointDeltaAxis2,
-                  fixed: .scrollWheelEventFixedPtDeltaAxis2, by: multiplier)
+                  fixed: .scrollWheelEventFixedPtDeltaAxis2, by: multiplier,
+                  carryPoint: &carryPoint2, carryLine: &carryLine2)
         return Unmanaged.passUnretained(event)
     }
 
+    private func updateVelocity(from event: CGEvent, at now: Double) {
+        let p1 = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+        let p2 = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)
+        let magnitude = Double(abs(p1) + abs(p2))
+        let dt = now - lastScrollEventAt
+        lastScrollEventAt = now
+        if dt > 0.25 {
+            // New scroll stream: start fresh so a slow start stays 1x.
+            velocityEMA = 0
+            carryPoint1 = 0; carryPoint2 = 0; carryLine1 = 0; carryLine2 = 0
+            return
+        }
+        let instantaneous = magnitude / max(dt, 0.004)
+        velocityEMA = velocityEMA * 0.7 + instantaneous * 0.3
+    }
+
     private func scaleAxis(_ event: CGEvent, line: CGEventField, point: CGEventField,
-                           fixed: CGEventField, by multiplier: Double) {
+                           fixed: CGEventField, by multiplier: Double,
+                           carryPoint: inout Double, carryLine: inout Double) {
         let fixedValue = event.getDoubleValueField(fixed)
         if fixedValue != 0 {
             event.setDoubleValueField(fixed, value: fixedValue * multiplier)
         }
         let pointValue = event.getIntegerValueField(point)
         if pointValue != 0 {
-            event.setIntegerValueField(point, value: Int64((Double(pointValue) * multiplier).rounded()))
+            event.setIntegerValueField(point, value: scaleWithCarry(pointValue, by: multiplier, carry: &carryPoint))
         }
         let lineValue = event.getIntegerValueField(line)
         if lineValue != 0 {
-            event.setIntegerValueField(line, value: Int64((Double(lineValue) * multiplier).rounded()))
+            event.setIntegerValueField(line, value: scaleWithCarry(lineValue, by: multiplier, carry: &carryLine))
         }
+    }
+
+    /// Integer scaling that carries the fractional remainder to the next event,
+    /// so no distance is lost or duplicated by per-event rounding.
+    private func scaleWithCarry(_ value: Int64, by multiplier: Double, carry: inout Double) -> Int64 {
+        let exact = Double(value) * multiplier + carry
+        let rounded = exact.rounded()
+        carry = exact - rounded
+        return Int64(rounded)
     }
 }

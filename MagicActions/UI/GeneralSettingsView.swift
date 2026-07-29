@@ -31,9 +31,10 @@ struct GeneralSettingsView: View {
             Section("スクロール速度") {
                 Toggle("スクロール速度を上書きする（倍率）", isOn: binding(\.scrollSpeedEnabled))
                 if appState.config.settings.scrollSpeedEnabled {
+                    Toggle("速い操作のときだけ増幅する（推奨）", isOn: binding(\.scrollAdaptive))
                     slider("トラックパッド倍率", value: settingsDouble(\.trackpadScrollMultiplier), in: 0.5...6)
                     slider("Magic Mouse 倍率", value: settingsDouble(\.mouseScrollMultiplier), in: 0.5...6)
-                    Text("1.00 が標準。2.00 なら一振りのスクロール量が2倍になり、慣性スクロールにも適用されます。タッチ式スクロール（トラックパッド・Magic Mouse）のみが対象で、ホイール式マウスには影響しません。入力監視の権限が必要です。")
+                    Text("推奨モードでは、ゆっくりのスクロールは等倍のままネイティブの滑らかさを保ち、速いスワイプのときだけ倍率が立ち上がります（慣性が減衰すると自動で等倍に戻るため、カクつきが出にくい）。オフにすると常時一定倍率です。タッチ式スクロールのみが対象で、ホイール式マウスには影響しません。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

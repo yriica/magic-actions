@@ -203,6 +203,7 @@ final class AppState: ObservableObject {
 
         scrollTap.setMultipliers(
             enabled: config.settings.scrollSpeedEnabled,
+            adaptive: config.settings.scrollAdaptive,
             trackpad: config.settings.trackpadScrollMultiplier,
             mouse: config.settings.mouseScrollMultiplier
         )

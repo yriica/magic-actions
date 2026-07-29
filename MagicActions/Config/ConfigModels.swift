@@ -46,6 +46,8 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
 
     /// Scroll-speed override (delta multiplication for touch-based scrolling).
     var scrollSpeedEnabled = false
+    /// Adaptive: amplify only fast swipes; slow scrolling stays native (no jank).
+    var scrollAdaptive = true
     var trackpadScrollMultiplier = 2.0
     var mouseScrollMultiplier = 1.0
 
@@ -60,7 +62,7 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case enabled, showHUD, watchTrackpad, suppressScrollDuringStroke, engine
         case trackpadTrackingEnabled, trackpadTrackingValue, trackpadLinearMode, trackpadTrackingOriginal
-        case scrollSpeedEnabled, trackpadScrollMultiplier, mouseScrollMultiplier
+        case scrollSpeedEnabled, scrollAdaptive, trackpadScrollMultiplier, mouseScrollMultiplier
         case loginItemAutoConfigured
         case showInDock, showMenuBarIcon
     }
@@ -79,6 +81,7 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
         trackpadLinearMode = try c.decodeIfPresent(Bool.self, forKey: .trackpadLinearMode) ?? false
         trackpadTrackingOriginal = try c.decodeIfPresent(Double.self, forKey: .trackpadTrackingOriginal)
         scrollSpeedEnabled = try c.decodeIfPresent(Bool.self, forKey: .scrollSpeedEnabled) ?? false
+        scrollAdaptive = try c.decodeIfPresent(Bool.self, forKey: .scrollAdaptive) ?? true
         trackpadScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .trackpadScrollMultiplier) ?? 2.0
         mouseScrollMultiplier = try c.decodeIfPresent(Double.self, forKey: .mouseScrollMultiplier) ?? 1.0
         loginItemAutoConfigured = try c.decodeIfPresent(Bool.self, forKey: .loginItemAutoConfigured) ?? false

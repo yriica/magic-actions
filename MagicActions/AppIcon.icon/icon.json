@@ -1,28 +1,49 @@
 {
-  "fill": {
-    "solid": "extended-srgb:0.78039,0.74118,0.72157,1.00000"
-  },
   "fill-specializations": [
+    {
+      "value": {
+        "solid": "extended-srgb:0.89412,0.83137,0.77647,1.00000"
+      }
+    },
     {
       "appearance": "dark",
       "value": {
-        "solid": "extended-srgb:0.16078,0.18824,0.23137,1.00000"
+        "solid": "extended-srgb:0.14902,0.18039,0.22745,1.00000"
       }
     }
   ],
   "groups": [
     {
-      "name": "Artwork",
+      "name": "Mark",
       "layers": [
         {
-          "name": "Magic Actions mark",
-          "image-name": "01-full-artwork.png",
-          "glass": false
+          "name": "Mouse",
+          "image-name": "mouse-mark.png",
+          "glass": false,
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "extended-srgb:0.18824,0.21961,0.26667,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "extended-srgb:0.92549,0.90196,0.86275,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "extended-srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ]
         }
       ],
       "shadow": {
-        "kind": "none",
-        "opacity": 0
+        "kind": "neutral",
+        "opacity": 0.35
       },
       "specular": false,
       "translucency": {

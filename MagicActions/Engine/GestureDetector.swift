@@ -44,6 +44,8 @@ final class GestureDetector {
         var strokeCandidate = false
         var dwellEvaluated = false
         var dwellFailure: StrokeDwellFailure?
+        /// Already emitted as an early-fired swipe; ignore for the rest of its life.
+        var consumed = false
     }
 
     private struct PendingMember {
@@ -147,6 +149,10 @@ final class GestureDetector {
             endedPaths.append(p)
         }
 
+        // Multi-finger swipes fire the moment the threshold is crossed, while
+        // the fingers are still on the surface (lift-based fallback remains).
+        events += earlySwipeCheck(deviceID: frame.deviceID, deviceKind: frame.deviceKind, at: t)
+
         // Finalize only after every same-frame lift has been removed, so fingers
         // ending together are not mistaken for TipTap anchors of each other.
         for p in endedPaths {
@@ -158,6 +164,47 @@ final class GestureDetector {
             events += flushGroup(g)
         }
         return events
+    }
+
+    /// Fire a 2+ finger swipe as soon as every active finger has crossed the
+    /// travel threshold in one consistent direction. This removes the
+    /// wait-for-lift plus grouping-window latency (~100ms+).
+    private func earlySwipeCheck(deviceID: UInt64, deviceKind: DeviceKind, at t: Double) -> [GestureEvent] {
+        guard !captureAllStrokes else { return [] }
+        let active = paths.values.filter { $0.key.deviceID == deviceID && !$0.ignored }
+        guard active.count >= 2 else { return [] }
+        guard !active.contains(where: { $0.consumed || $0.strokeCandidate }) else { return [] }
+
+        var direction: SwipeDirection?
+        for p in active {
+            guard t - p.startTime <= settings.swipeMaxDuration else { return [] }
+            let dx = p.lastX - p.startX
+            let dy = p.lastY - p.startY
+            guard (dx * dx + dy * dy).squareRoot() >= settings.swipeMinTravel else { return [] }
+            let d: SwipeDirection
+            if abs(dx) >= abs(dy) * settings.axisDominance {
+                d = dx > 0 ? .right : .left
+            } else if abs(dy) >= abs(dx) * settings.axisDominance {
+                d = dy > 0 ? .up : .down
+            } else {
+                return []
+            }
+            if let direction, direction != d { return [] }
+            direction = d
+        }
+        guard let direction else { return [] }
+
+        let earliestStart = active.map(\.startTime).min() ?? t
+        if clickOccurred(between: earliestStart, and: t) { return [] }
+        if scrolledTooMuch(between: earliestStart, and: t) { return [] }
+
+        for p in active {
+            paths[p.key]?.consumed = true
+        }
+        let cx = active.map(\.startX).reduce(0, +) / Double(active.count)
+        let cy = active.map(\.startY).reduce(0, +) / Double(active.count)
+        return [makeEvent(kind: .swipe, fingers: min(active.count, 5), x: cx, y: cy,
+                          deviceKind: deviceKind, timestamp: t, direction: direction)]
     }
 
     /// Flush a pending group whose deadline has passed with no further frames.
@@ -185,7 +232,7 @@ final class GestureDetector {
     }
 
     private func evaluateDwell(_ p: inout TouchPath, at t: Double) {
-        guard strokeEnabled, !p.dwellEvaluated, !p.ignored, !captureAllStrokes else { return }
+        guard strokeEnabled, !p.dwellEvaluated, !p.ignored, !p.consumed, !captureAllStrokes else { return }
         guard t - p.startTime >= settings.strokeDwellTime else { return }
         p.dwellEvaluated = true
         let inTriggerZone = settings.strokeTriggerAnywhere
@@ -222,7 +269,7 @@ final class GestureDetector {
     }
 
     private func finalize(_ p: TouchPath, endTime: Double) -> [GestureEvent] {
-        if p.ignored { return [] }
+        if p.ignored || p.consumed { return [] }
 
         if captureAllStrokes {
             if p.samples.count >= 4, p.pathLength >= 0.05 {

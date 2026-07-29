@@ -121,6 +121,36 @@ final class GestureDetectorTests: XCTestCase {
         XCTAssertEqual(events.first?.direction, .right)
     }
 
+    func testThreeFingerSwipeFiresBeforeLift() {
+        var events: [GestureEvent] = []
+        events += detector.process(frame(0.00, touches: [
+            (1, .began, 0.3, 0.6), (2, .began, 0.5, 0.6), (3, .began, 0.7, 0.6),
+        ]))
+        events += detector.process(frame(0.06, touches: [
+            (1, .moved, 0.3, 0.48), (2, .moved, 0.5, 0.48), (3, .moved, 0.7, 0.48),
+        ]))
+        XCTAssertTrue(events.isEmpty, "threshold not yet crossed")
+
+        // Threshold crossed while all three fingers are still on the surface.
+        events += detector.process(frame(0.12, touches: [
+            (1, .moved, 0.3, 0.35), (2, .moved, 0.5, 0.35), (3, .moved, 0.7, 0.35),
+        ]))
+        XCTAssertEqual(events.count, 1, "should fire before any finger lifts")
+        XCTAssertEqual(events.first?.kind, .swipe)
+        XCTAssertEqual(events.first?.direction, .down)
+        XCTAssertEqual(events.first?.fingers, 3)
+
+        // The rest of the gesture must not fire again.
+        events += detector.process(frame(0.20, touches: [
+            (1, .moved, 0.3, 0.25), (2, .moved, 0.5, 0.25), (3, .moved, 0.7, 0.25),
+        ]))
+        events += detector.process(frame(0.26, touches: [
+            (1, .ended, 0.3, 0.22), (2, .ended, 0.5, 0.22), (3, .ended, 0.7, 0.22),
+        ]))
+        events += detector.flush(at: 0.6)
+        XCTAssertEqual(events.count, 1)
+    }
+
     func testSwipeUpTwoFingers() {
         var events: [GestureEvent] = []
         events += detector.process(frame(0.00, touches: [(1, .began, 0.4, 0.2), (2, .began, 0.6, 0.2)]))

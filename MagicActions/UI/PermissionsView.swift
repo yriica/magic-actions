@@ -8,14 +8,14 @@ struct PermissionsView: View {
             Section {
                 permissionRow(
                     title: "アクセシビリティ",
-                    detail: "ショートカット送出などの操作の実行に必須です。",
+                    detail: "ショートカット送出などの操作の実行に必須です。Enter ガードと ⌘ 単押しでの入力切替（キーボードのイベントタップ）にも必須です。",
                     granted: appState.permissions.accessibility,
                     request: { appState.permissions.requestAccessibility() },
                     open: { appState.permissions.openAccessibilityPane() }
                 )
                 permissionRow(
                     title: "入力監視",
-                    detail: "ストローク中のスクロール抑制に使用します。タッチデータの受信にも必要な場合があります。",
+                    detail: "ストローク中のスクロール抑制に使用します。タッチデータの受信や、キーボード機能のキー監視にも必要な場合があります。",
                     granted: appState.permissions.inputMonitoring,
                     request: { appState.permissions.requestInputMonitoring() },
                     open: { appState.permissions.openInputMonitoringPane() }

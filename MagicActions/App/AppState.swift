@@ -39,9 +39,12 @@ final class AppState: ObservableObject {
     private let engine = GestureEngine()
     private let buttons = ButtonMonitor()
     private let scrollTap = ScrollTap()
+    private let keyboardTap = KeyboardTap()
     private let hud = HUDController()
     private let runtime = RuntimeFlags()
 
+    /// Whether the keyboard event tap (Enter Guard / Command-tap switching) is live.
+    @Published private(set) var keyboardTapActive = false
     @Published private(set) var devices: [DeviceInfo] = []
     @Published private(set) var liveFrames: [UInt64: TouchFrame] = [:]
     @Published private(set) var gestureLog: [String] = []
@@ -166,6 +169,23 @@ final class AppState: ObservableObject {
                 guard granted, let self else { return }
                 self.scrollTap.resetUnavailable()
                 self.applyConfig(self.config)
+                self.retryKeyboardTap()
+            }
+            .store(in: &cancellables)
+
+        // The keyboard tap modifies events, which needs Accessibility.
+        permissions.$accessibility
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] granted in
+                guard granted, let self else { return }
+                self.retryKeyboardTap()
+            }
+            .store(in: &cancellables)
+
+        frontmost.$bundleID
+            .sink { [keyboardTap] bundleID in
+                keyboardTap.setFrontmost(bundleID)
             }
             .store(in: &cancellables)
     }
@@ -210,7 +230,62 @@ final class AppState: ObservableObject {
             mouse: config.settings.mouseScrollMultiplier
         )
 
+        applyKeyboardFeatures(config.settings)
         applyActivationPolicy(config.settings.showInDock)
+    }
+
+    // MARK: - Keyboard features (Enter Guard / Command-tap input switching)
+
+    /// True when a keyboard feature is switched on and therefore needs the tap.
+    var keyboardFeaturesWanted: Bool {
+        keyboardOptions(config.settings).needsTap
+    }
+
+    private func keyboardOptions(_ settings: AppSettingsModel) -> KeyboardTap.Options {
+        KeyboardTap.Options(
+            enterGuardEnabled: settings.enterGuardEnabled,
+            enterGuardBundleIDs: Set(settings.enterGuardApps.map(\.bundleID)),
+            imePassthrough: settings.enterGuardIMEPassthrough,
+            commandTapSwitchEnabled: settings.commandTapInputSwitch
+        )
+    }
+
+    private func applyKeyboardFeatures(_ settings: AppSettingsModel) {
+        keyboardTap.setOptions(keyboardOptions(settings))
+        keyboardTapActive = keyboardTap.isActive
+    }
+
+    private func retryKeyboardTap() {
+        keyboardTap.resetUnavailable()
+        keyboardTapActive = keyboardTap.isActive
+    }
+
+    /// Manual retry from the settings screen (e.g. after granting a permission
+    /// that the 2-second poll has not picked up yet).
+    func reconnectKeyboardTap() {
+        permissions.refresh()
+        retryKeyboardTap()
+    }
+
+    /// Turning a keyboard feature on is the moment to ask for Accessibility,
+    /// so the system prompt appears in context rather than at launch.
+    func setEnterGuardEnabled(_ enabled: Bool) {
+        config.settings.enterGuardEnabled = enabled
+        if enabled { requestKeyboardPermissionsIfNeeded() }
+    }
+
+    func setCommandTapInputSwitch(_ enabled: Bool) {
+        config.settings.commandTapInputSwitch = enabled
+        if enabled { requestKeyboardPermissionsIfNeeded() }
+    }
+
+    private func requestKeyboardPermissionsIfNeeded() {
+        permissions.refresh()
+        if !permissions.accessibility {
+            permissions.requestAccessibility()
+        } else if !permissions.inputMonitoring {
+            permissions.requestInputMonitoring()
+        }
     }
 
     /// Nani-style presentation switch: regular app (Dock + app switcher) vs

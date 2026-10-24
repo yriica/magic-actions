@@ -4,6 +4,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case gestures
     case liveView
     case strokes
+    case keyboard
     case permissions
     case general
 
@@ -14,6 +15,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .gestures: return "ジェスチャ"
         case .liveView: return "ライブビュー"
         case .strokes: return "ストローク"
+        case .keyboard: return "キーボード"
         case .permissions: return "権限"
         case .general: return "一般"
         }
@@ -24,6 +26,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .gestures: return "hand.tap"
         case .liveView: return "dot.radiowaves.left.and.right"
         case .strokes: return "scribble.variable"
+        case .keyboard: return "keyboard"
         case .permissions: return "lock.shield"
         case .general: return "gearshape"
         }
@@ -49,6 +52,8 @@ struct SettingsRootView: View {
                 LiveCanvasView()
             case .strokes:
                 StrokeTemplatesView()
+            case .keyboard:
+                KeyboardSettingsView()
             case .permissions:
                 PermissionsView()
             case .general:

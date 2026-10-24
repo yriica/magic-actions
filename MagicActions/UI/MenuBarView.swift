@@ -6,6 +6,17 @@ struct MenuBarView: View {
 
     var body: some View {
         Toggle("ジェスチャを有効にする", isOn: enabledBinding)
+        Toggle("Enter ガード", isOn: Binding(
+            get: { appState.config.settings.enterGuardEnabled },
+            set: { appState.setEnterGuardEnabled($0) }
+        ))
+        Toggle("⌘ 単押しで英数／かな", isOn: Binding(
+            get: { appState.config.settings.commandTapInputSwitch },
+            set: { appState.setCommandTapInputSwitch($0) }
+        ))
+        if appState.keyboardFeaturesWanted && !appState.keyboardTapActive {
+            Text("キーボード機能: 権限が必要です（設定 → キーボード）")
+        }
 
         Divider()
 

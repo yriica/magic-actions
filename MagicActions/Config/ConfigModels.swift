@@ -30,6 +30,20 @@ struct StrokeTemplate: Codable, Identifiable, Hashable, Sendable {
     var isBuiltin = false
 }
 
+/// An app whose Return key Enter Guard remaps.
+struct EnterGuardApp: Codable, Hashable, Identifiable, Sendable {
+    var bundleID: String
+    var name: String
+
+    var id: String { bundleID }
+
+    /// Chat apps where Return sends and Shift+Return inserts a newline.
+    static let defaults: [EnterGuardApp] = [
+        EnterGuardApp(bundleID: "com.anthropic.claudefordesktop", name: "Claude"),
+        EnterGuardApp(bundleID: "com.anysphere.sand", name: "Grok Bot"),
+    ]
+}
+
 struct AppSettingsModel: Codable, Hashable, Sendable {
     var enabled = true
     var showHUD = true
@@ -59,12 +73,23 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
     /// Menu bar icon can only be hidden while the Dock icon is shown.
     var showMenuBarIcon = true
 
+    /// Enter Guard: in listed apps Return inserts a newline, Cmd+Return sends.
+    var enterGuardEnabled = false
+    var enterGuardApps = EnterGuardApp.defaults
+    /// While an input method holds marked text, hand plain Return to it untouched
+    /// (confirm only) instead of sending Shift+Return.
+    var enterGuardIMEPassthrough = true
+
+    /// Lone left Command tap → English (Eisu), lone right Command tap → Japanese (Kana).
+    var commandTapInputSwitch = false
+
     private enum CodingKeys: String, CodingKey {
         case enabled, showHUD, watchTrackpad, suppressScrollDuringStroke, engine
         case trackpadTrackingEnabled, trackpadTrackingValue, trackpadLinearMode, trackpadTrackingOriginal
         case scrollSpeedEnabled, scrollAdaptive, trackpadScrollMultiplier, mouseScrollMultiplier
         case loginItemAutoConfigured
         case showInDock, showMenuBarIcon
+        case enterGuardEnabled, enterGuardApps, enterGuardIMEPassthrough, commandTapInputSwitch
     }
 
     init() {}
@@ -87,6 +112,10 @@ struct AppSettingsModel: Codable, Hashable, Sendable {
         loginItemAutoConfigured = try c.decodeIfPresent(Bool.self, forKey: .loginItemAutoConfigured) ?? false
         showInDock = try c.decodeIfPresent(Bool.self, forKey: .showInDock) ?? false
         showMenuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .showMenuBarIcon) ?? true
+        enterGuardEnabled = try c.decodeIfPresent(Bool.self, forKey: .enterGuardEnabled) ?? false
+        enterGuardApps = try c.decodeIfPresent([EnterGuardApp].self, forKey: .enterGuardApps) ?? EnterGuardApp.defaults
+        enterGuardIMEPassthrough = try c.decodeIfPresent(Bool.self, forKey: .enterGuardIMEPassthrough) ?? true
+        commandTapInputSwitch = try c.decodeIfPresent(Bool.self, forKey: .commandTapInputSwitch) ?? false
     }
 }
 

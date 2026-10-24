@@ -4,6 +4,11 @@ Magic Mouse のタッチ面のタップ・スワイプ・TipTap・ストロー�
 
 Magic Trackpad / 内蔵トラックパッドでも動作する（設定でオフにできる）。
 
+v0.8 の追加機能（設定 → キーボード。どちらも既定はオフ）:
+
+- Enter ガード: 対象アプリ（既定: Claude `com.anthropic.claudefordesktop`、Grok Bot `com.anysphere.sand`）が前面のとき、Return を改行（Shift+Return）に、⌘Return を送信（Return）に置き換える。対象アプリは設定で追加・削除できる。日本語入力の未確定文字列があるときの Return は IME にそのまま渡して変換確定だけを行う（判定: 入力ソースが ABC / 英字モードなら未確定なし → フォーカス中の要素に Accessibility の `AXTextInputMarkedRange` を問い合わせ → 答えられない要素（Chromium/Electron 等）ではキー入力履歴から推定。推定は不確かなキー（Delete・Esc・⌘ 付き・クリック等）で必ず「未確定なし」側に倒し、誤送信ではなく「余分な改行」側で失敗するようにしている）
+- ⌘ 単押しで入力切替: 左⌘ を単独で押して離すと英数（ABC）、右⌘ で かな（日本語）。他のキー・修飾キー・クリック・スクロールを挟んだ場合や 0.6 秒以上押していた場合は何もしない。JIS の英数／かなキー（キーコード 102 / 104）を送出して IME 自身に切り替えさせる方式（`TISSelectInputSource` は CJK 入力メソッドで前面アプリに反映されないことがあるため不採用）
+
 v0.5 の追加機能:
 
 - ストローク発動の緩和と診断: 既定値を緩め（静止許容 0.10・開始ゾーン 0.45・一致しきい値 0.70・直線判定 0.35）、旧設定は起動時に自動マイグレーション。「面のどこからでも開始」モードを追加。不成立時は理由（静止不足・描き始めが早い・ベストスコアとしきい値）を認識ログと HUD に表示
@@ -26,7 +31,7 @@ v0.2 の追加機能:
 
 - macOS 15 以降（macOS 26.5 で開発・検証）
 - Magic Mouse（1st/2nd gen）または Magic Trackpad
-- 権限: アクセシビリティ（アクション実行に必須）、入力監視（スクロール抑制に使用）
+- 権限: アクセシビリティ（アクション実行・キーボード機能に必須）、入力監視（スクロール抑制に使用。キーボード機能でも環境により必要）
 
 ## ビルド
 
@@ -66,6 +71,8 @@ MagicActions/
   Actions/      Action モデル, ActionDispatcher（CGEvent 送出ほか）
   Config/       AppConfig（プロファイル・バインディング・テンプレート）, ConfigStore（JSON 永続化）
   Permissions/  PermissionMonitor（AX / 入力監視の状態・要求）
+  Keyboard/     KeyboardTap（キーボードのイベントタップ: Enter ガード・⌘ 単押し入力切替）,
+                KeyboardLogic（判定ロジック。純粋関数でテスト対象）, TextInputProbe（TIS / AX の問い合わせ）
   Support/      ButtonMonitor, ScrollSuppressor, HUDController, FrontmostAppMonitor, LoginItemManager
   App/          AppState（配線）, MagicActionsApp（MenuBarExtra + 設定ウィンドウ）
   UI/           設定画面一式（ライブキャンバス・レコーダー・アクションピッカー等）
@@ -80,6 +87,8 @@ spike/          検証 CLI（mtdump: デバイス列挙とタッチダンプ, pe
 
 - 私有フレームワーク `MultitouchSupport.framework` に依存するため、App Store 配布は不可。macOS メジャーアップデートで動かなくなる可能性が常にある（`spike/mtdump` で切り分け可能）
 - サンドボックス無効・Debug は ad-hoc 署名。配布する場合は Developer ID 署名＋公証が必要
+- キーボード機能はセキュア入力（パスワード欄、ターミナルの「セキュアキーボード入力」）が有効な間は動作しない（OS がイベントタップへのキー配送を止めるため）。設定 → キーボードに状態を表示する
+- Enter ガードは、修飾キーを書き換えたキーイベントをアプリに渡す方式。アプリが（イベント自体ではなく）物理キーの状態を直接読む場合は効かない可能性がある
 - キーボードショートカット送出は US/JIS などレイアウト差の影響を受ける場合がある（キーコードベースのため）
 - Magic Mouse 2 の Family ID は 112/113 と推定（実機接続時に `spike/mtdump` で要確認。想定外の ID だった場合は `TouchTypes.swift` の `DeviceKind.from` に追記する）
 - トラッキング速度上書きはセッション全体（全トラックパッド共通）に効く。システム設定のスライダを動かすと上書きされるため、アプリ起動時・スリープ復帰時・デバイス再接続時に再適用する。macOS 26 では per-service の HID プロパティ読みが null を返すなど OS 側の変化が続いている領域なので、効かなくなった場合は `spike/trackspeed2` で経路を再診断する

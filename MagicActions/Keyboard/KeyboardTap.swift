@@ -35,6 +35,10 @@ final class KeyboardTap: @unchecked Sendable {
     private var returnRemaps: [Int64: EnterGuard.Remap] = [:]
     private var lastFrontmost: String?
     private let ownPID = Int64(ProcessInfo.processInfo.processIdentifier)
+    /// Private source so a rewritten Return is not reconciled with the built-in
+    /// keyboard's physical modifiers. Created with the tap, used only on the
+    /// tap thread.
+    private var rewriteSource: CGEventSource?
 
     var isActive: Bool {
         guard let tap else { return false }
@@ -94,6 +98,11 @@ final class KeyboardTap: @unchecked Sendable {
             return
         }
         self.tap = tap
+        if rewriteSource == nil {
+            let source = CGEventSource(stateID: .privateState)
+            source?.localEventsSuppressionInterval = 0
+            rewriteSource = source
+        }
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -109,8 +118,11 @@ final class KeyboardTap: @unchecked Sendable {
             }
             return pass
         }
-        // Our own synthesized events (gesture shortcuts, Eisu/Kana) stay literal.
-        if event.getIntegerValueField(.eventSourceUnixProcessID) == ownPID {
+        // Our own synthesized events (gesture shortcuts, Eisu/Kana, rewritten
+        // Returns) stay literal. The user-data mark covers a rewritten Return
+        // whose process ID was cleared on the way back through the tap.
+        if event.getIntegerValueField(.eventSourceUnixProcessID) == ownPID
+            || event.getIntegerValueField(.eventSourceUserData) == EnterGuard.rewrittenUserData {
             return pass
         }
 
@@ -131,11 +143,12 @@ final class KeyboardTap: @unchecked Sendable {
             }
         case .keyDown:
             commandTap.cancel()
-            handleKeyDown(event, options: snapshot.options, frontmost: snapshot.frontmostBundleID)
+            if let replaced = handleKeyDown(event, options: snapshot.options, frontmost: snapshot.frontmostBundleID) {
+                return Unmanaged.passRetained(replaced)
+            }
         case .keyUp:
-            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-            if KeyCodes.isReturn(keyCode), let remap = returnRemaps.removeValue(forKey: keyCode) {
-                event.flags = EnterGuard.remapped(event.flags, remap)
+            if let replaced = handleKeyUp(event) {
+                return Unmanaged.passRetained(replaced)
             }
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             commandTap.cancel()
@@ -148,12 +161,13 @@ final class KeyboardTap: @unchecked Sendable {
         return pass
     }
 
-    private func handleKeyDown(_ event: CGEvent, options: Options, frontmost: String?) {
+    /// Nil keeps the hardware event. A non-nil event replaces it.
+    private func handleKeyDown(_ event: CGEvent, options: Options, frontmost: String?) -> CGEvent? {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         guard options.enterGuardEnabled,
               let frontmost, options.enterGuardBundleIDs.contains(frontmost) else {
             returnRemaps.removeValue(forKey: keyCode)
-            return
+            return nil
         }
 
         guard KeyCodes.isReturn(keyCode) else {
@@ -163,7 +177,7 @@ final class KeyboardTap: @unchecked Sendable {
                 producesText: Self.producesText(event),
                 sourceComposes: InputSourceInspector.currentSourceComposes()
             )
-            return
+            return nil
         }
 
         let remap: EnterGuard.Remap
@@ -180,7 +194,30 @@ final class KeyboardTap: @unchecked Sendable {
         }
         returnRemaps[keyCode] = remap
         composition.reset()
-        event.flags = EnterGuard.remapped(event.flags, remap)
+        return apply(remap, keyCode: keyCode, to: event, keyDown: true)
+    }
+
+    private func handleKeyUp(_ event: CGEvent) -> CGEvent? {
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        guard KeyCodes.isReturn(keyCode), let remap = returnRemaps.removeValue(forKey: keyCode) else {
+            return nil
+        }
+        return apply(remap, keyCode: keyCode, to: event, keyDown: false)
+    }
+
+    private func apply(_ remap: EnterGuard.Remap, keyCode: Int64, to event: CGEvent, keyDown: Bool) -> CGEvent? {
+        let delivery = EnterGuard.delivery(keyCode: keyCode, flags: event.flags, remap: remap)
+        guard delivery.replacesHardwareEvent else { return nil }
+        if let source = rewriteSource,
+           let rewritten = EnterGuard.rewrittenEvent(
+            matching: event, keyDown: keyDown, delivery: delivery, source: source
+           ) {
+            return rewritten
+        }
+        // Event creation failed: still edit flags in place, which is enough
+        // for Bluetooth keyboards.
+        event.flags = delivery.flags
+        return nil
     }
 
     /// Marked-text check, cheapest and most certain first: a non-composing input

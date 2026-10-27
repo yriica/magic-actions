@@ -38,6 +38,41 @@ final class KeyboardLogicTests: XCTestCase {
         XCTAssertEqual(EnterGuard.decide(flags: plain, imePassthrough: false, composing: true), .addShift)
     }
 
+    func testRemapReplacesHardwareEventSoBuiltInKeyboardKeepsFlags() {
+        let plainDelivery = EnterGuard.delivery(keyCode: KeyCodes.returnKey, flags: plain, remap: .addShift)
+        XCTAssertTrue(plainDelivery.replacesHardwareEvent)
+        XCTAssertEqual(plainDelivery.keyCode, KeyCodes.returnKey)
+        XCTAssertTrue(plainDelivery.flags.contains(.maskShift))
+
+        let commandDelivery = EnterGuard.delivery(keyCode: KeyCodes.returnKey, flags: cmdLeft, remap: .removeCommand)
+        XCTAssertTrue(commandDelivery.replacesHardwareEvent)
+        XCTAssertFalse(commandDelivery.flags.contains(.maskCommand))
+
+        let untouched = EnterGuard.delivery(keyCode: KeyCodes.returnKey, flags: plain, remap: .passThrough)
+        XCTAssertFalse(untouched.replacesHardwareEvent)
+        XCTAssertEqual(untouched.flags, plain)
+    }
+
+    func testRewrittenReturnKeepsKeyIdentityAndPrivateSource() {
+        let hardware = CGEventSource(stateID: .hidSystemState)!
+        let original = CGEvent(keyboardEventSource: hardware, virtualKey: CGKeyCode(KeyCodes.returnKey), keyDown: true)!
+        original.flags = plain
+        original.setIntegerValueField(.keyboardEventKeyboardType, value: 44)
+        original.setIntegerValueField(.keyboardEventAutorepeat, value: 1)
+        let delivery = EnterGuard.delivery(keyCode: KeyCodes.returnKey, flags: plain, remap: .addShift)
+        let source = CGEventSource(stateID: .privateState)!
+        let rewritten = EnterGuard.rewrittenEvent(matching: original, keyDown: true, delivery: delivery, source: source)
+        let state = rewritten?.getIntegerValueField(.eventSourceStateID) ?? 0
+        XCTAssertEqual(Int32(truncatingIfNeeded: state), CGEventSourceStateID.privateState.rawValue)
+        XCTAssertEqual(rewritten?.getIntegerValueField(.eventSourceUserData), EnterGuard.rewrittenUserData)
+        XCTAssertEqual(rewritten?.getIntegerValueField(.keyboardEventKeycode), KeyCodes.returnKey)
+        XCTAssertEqual(rewritten?.getIntegerValueField(.keyboardEventKeyboardType), 44)
+        XCTAssertEqual(rewritten?.getIntegerValueField(.keyboardEventAutorepeat), 1)
+        XCTAssertEqual(rewritten?.timestamp, original.timestamp)
+        XCTAssertTrue(rewritten?.flags.contains(.maskShift) ?? false)
+        XCTAssertNil(EnterGuard.rewrittenEvent(matching: original, keyDown: true, delivery: EnterGuard.delivery(keyCode: KeyCodes.returnKey, flags: plain, remap: .passThrough), source: source))
+    }
+
     func testComposingNotQueriedForCommandReturnOrWithoutPassthrough() {
         var queried = false
         func probe() -> Bool { queried = true; return true }

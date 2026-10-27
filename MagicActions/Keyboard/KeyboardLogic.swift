@@ -60,6 +60,65 @@ enum EnterGuard {
             return CGEventFlags(rawValue: flags.rawValue & ~cleared)
         }
     }
+
+    /// Marks a Return we already rewrote, so a re-delivered copy is not rewritten again.
+    static let rewrittenUserData: Int64 = 0x4D41_4547
+
+    struct Delivery: Equatable, Sendable {
+        var keyCode: Int64
+        var flags: CGEventFlags
+        /// The built-in keyboard's events keep the HID system source. Editing
+        /// `flags` on that event is undone before the app sees it: macOS fills
+        /// the modifiers back in from the physical keys. A private-source event
+        /// keeps the flags written here. Bluetooth keyboards happen to honor an
+        /// in-place edit; replacing both uses one path.
+        var replacesHardwareEvent: Bool
+    }
+
+    static func delivery(keyCode: Int64, flags: CGEventFlags, remap: Remap) -> Delivery {
+        switch remap {
+        case .passThrough:
+            return Delivery(keyCode: keyCode, flags: flags, replacesHardwareEvent: false)
+        case .addShift, .removeCommand:
+            return Delivery(keyCode: keyCode, flags: remapped(flags, remap), replacesHardwareEvent: true)
+        }
+    }
+
+    /// A new key event carrying `delivery`, created from `source` (a private
+    /// event source). Keyboard type, repeat, and timestamp stay with the
+    /// hardware event so the app still sees the same key.
+    static func rewrittenEvent(
+        matching event: CGEvent,
+        keyDown: Bool,
+        delivery: Delivery,
+        source: CGEventSource
+    ) -> CGEvent? {
+        guard delivery.replacesHardwareEvent else { return nil }
+        guard let created = CGEvent(
+            keyboardEventSource: source,
+            virtualKey: CGKeyCode(UInt16(truncatingIfNeeded: delivery.keyCode)),
+            keyDown: keyDown
+        ) else { return nil }
+        created.flags = delivery.flags
+        created.timestamp = event.timestamp
+        // A private-source event leaves this field unset. Set it, or the
+        // window server treats the source as garbage and reconciles modifiers
+        // from the built-in keyboard again.
+        created.setIntegerValueField(
+            .eventSourceStateID,
+            value: Int64(CGEventSourceStateID.privateState.rawValue)
+        )
+        created.setIntegerValueField(.eventSourceUserData, value: rewrittenUserData)
+        created.setIntegerValueField(
+            .keyboardEventKeyboardType,
+            value: event.getIntegerValueField(.keyboardEventKeyboardType)
+        )
+        created.setIntegerValueField(
+            .keyboardEventAutorepeat,
+            value: event.getIntegerValueField(.keyboardEventAutorepeat)
+        )
+        return created
+    }
 }
 
 /// Keystroke-based guess of whether an input method holds marked text. Only
